@@ -55,7 +55,7 @@ the previous paragraph is here.
 
 ## License
 
-Copyright (c) 2009-2015 Pieter Hintjens.
+Copyright (c) 2009-2015 Pieter Hintjens.  
 Copyright (c) The Monero Project  
 
 This source code is licensed under the BSD-3 license found in the
