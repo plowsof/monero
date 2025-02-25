@@ -1,7 +1,11 @@
 # Monero
 
-Copyright (c) 2014-2024, The Monero Project
-Portions Copyright (c) 2012-2013 The Cryptonote developers.
+Copyright (c) The Monero Project  
+
+This source code is licensed under the BSD-3 license found in the
+LICENSE file in the root directory of this source tree.  
+
+Portions Copyright (c) 2012-2013 The Cryptonote developers.  
 
 ## Table of Contents
 
