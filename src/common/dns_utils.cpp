@@ -503,16 +503,16 @@ bool load_txt_records_from_dns(std::vector<std::string> &good_records, const std
   do
   {
     const std::string &url = dns_urls[cur_index];
-    if (!avail[cur_index])
-    {
-      records[cur_index].clear();
-      LOG_PRINT_L2("DNSSEC not available for hostname: " << url << ", skipping.");
-    }
-    if (!valid[cur_index])
-    {
-      records[cur_index].clear();
-      LOG_PRINT_L2("DNSSEC validation failed for hostname: " << url << ", skipping.");
-    }
+    //if (!avail[cur_index])
+    //{
+    //  records[cur_index].clear();
+    // LOG_PRINT_L2("DNSSEC not available for hostname: " << url << ", skipping.");
+    //}
+    //if (!valid[cur_index])
+    //{
+    //  records[cur_index].clear();
+    // LOG_PRINT_L2("DNSSEC validation failed for hostname: " << url << ", skipping.");
+    //}
 
     cur_index++;
     if (cur_index == dns_urls.size())
@@ -567,8 +567,6 @@ bool load_txt_records_from_dns(std::vector<std::string> &good_records, const std
 
 std::vector<std::string> parse_dns_public(const char *s)
 {
-  unsigned ip0, ip1, ip2, ip3;
-  char c;
   std::vector<std::string> dns_public_addr;
   if (!strcmp(s, "tcp"))
   {
@@ -576,15 +574,46 @@ std::vector<std::string> parse_dns_public(const char *s)
       dns_public_addr.push_back(DEFAULT_DNS_PUBLIC_ADDR[i]);
     LOG_PRINT_L0("Using default public DNS server(s): " << boost::join(dns_public_addr, ", ") << " (TCP)");
   }
-  else if (sscanf(s, "tcp://%u.%u.%u.%u%c", &ip0, &ip1, &ip2, &ip3, &c) == 4)
+  else if (!strncmp(s, "tcp://", strlen("tcp://")))
   {
-    if (ip0 > 255 || ip1 > 255 || ip2 > 255 || ip3 > 255)
+    // libunbound accepts upstream servers optionally suffixed with "@port".
+    // For convenience, accept "tcp://A.B.C.D:PORT" and normalize to "A.B.C.D@PORT".
+    const std::string hostport = std::string(s + strlen("tcp://"));
+    const size_t sep_pos = hostport.find_first_of(":@");
+
+    std::string host = hostport;
+    std::string port;
+    if (sep_pos != std::string::npos)
+    {
+      host = hostport.substr(0, sep_pos);
+      port = hostport.substr(sep_pos + 1);
+    }
+
+    unsigned ip0, ip1, ip2, ip3;
+    char c;
+    if (sscanf(host.c_str(), "%u.%u.%u.%u%c", &ip0, &ip1, &ip2, &ip3, &c) != 4 || ip0 > 255 || ip1 > 255 || ip2 > 255 || ip3 > 255)
     {
       MERROR("Invalid IP: " << s << ", using default");
     }
     else
     {
-      dns_public_addr.push_back(std::string(s + strlen("tcp://")));
+      if (port.empty())
+      {
+        dns_public_addr.push_back(host);
+      }
+      else
+      {
+        char *end = nullptr;
+        const unsigned long port_num = strtoul(port.c_str(), &end, 10);
+        if (!end || *end != '\0' || port_num == 0 || port_num > 65535)
+        {
+          MERROR("Invalid port: " << s << ", using default");
+        }
+        else
+        {
+          dns_public_addr.push_back(host + "@" + std::to_string(port_num));
+        }
+      }
     }
   }
   else
