@@ -365,6 +365,8 @@ namespace nodetool
     bool do_handshake_with_peer(peerid_type& pi, p2p_connection_context& context, bool just_take_peerlist = false);
     bool do_peer_timed_sync(const epee::net_utils::connection_context_base& context, peerid_type peer_id);
     bool update_dns_blocklist();
+    void apply_blocklist_text(const std::string& text);
+    size_t apply_blocklist_text(const std::string& text, time_t seconds, bool add_only, const char* invalid_log_prefix = nullptr);
 
     bool make_new_connection_from_anchor_peerlist(const std::vector<anchor_peerlist_entry>& anchor_peerlist);
     bool make_new_connection_from_peerlist(network_zone& zone, bool use_white_list);

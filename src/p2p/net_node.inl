@@ -516,34 +516,7 @@ namespace nodetool
       {
         throw std::runtime_error("Failed to read ban list file " + ban_list);
       }
-
-      std::istringstream iss(banned_ips);
-      for (std::string line; std::getline(iss, line); )
-      {
-        // ignore comments after '#' character
-        const size_t pound_idx = line.find('#');
-        if (pound_idx != std::string::npos)
-          line.resize(pound_idx);
-
-        // trim whitespace and ignore empty lines
-        boost::trim(line);
-        if (line.empty())
-          continue;
-
-        auto subnet = net::get_ipv4_subnet_address(line);
-        if (subnet)
-        {
-          block_subnet(*subnet, std::numeric_limits<time_t>::max());
-          continue;
-        }
-        const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(line, 0);
-        if (parsed_addr)
-        {
-          block_host(*parsed_addr, std::numeric_limits<time_t>::max());
-          continue;
-        }
-        MERROR("Invalid IP address or IPv4 subnet: " << line);
-      }
+      apply_blocklist_text(banned_ips);
     }
 
     if(command_line::has_arg(vm, arg_p2p_hide_my_port))
@@ -895,6 +868,51 @@ namespace nodetool
 
     network_zone& public_zone = m_network_zones[epee::net_utils::zone::public_];
     return m_network_zones.emplace_hint(zone_, std::piecewise_construct, std::make_tuple(zone), std::tie(public_zone.m_net_server.get_io_context()))->second;
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  void node_server<t_payload_net_handler>::apply_blocklist_text(const std::string& text)
+  {
+    apply_blocklist_text(text, std::numeric_limits<time_t>::max(), false);
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  size_t node_server<t_payload_net_handler>::apply_blocklist_text(const std::string& text, time_t seconds, bool add_only, const char* invalid_log_prefix)
+  {
+    size_t good = 0;
+    std::istringstream iss(text);
+    for (std::string line; std::getline(iss, line); )
+    {
+      // ignore comments after '#' character
+      const size_t pound_idx = line.find('#');
+      if (pound_idx != std::string::npos)
+        line.resize(pound_idx);
+
+      // trim whitespace and ignore empty lines
+      boost::trim(line);
+      if (line.empty())
+        continue;
+
+      auto subnet = net::get_ipv4_subnet_address(line);
+      if (subnet)
+      {
+        block_subnet(*subnet, seconds);
+        ++good;
+        continue;
+      }
+      const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(line, 0);
+      if (parsed_addr)
+      {
+        block_host(*parsed_addr, seconds, add_only);
+        ++good;
+        continue;
+      }
+      if (invalid_log_prefix)
+        MWARNING(invalid_log_prefix << line << " - " << parsed_addr.error());
+      else
+        MERROR("Invalid IP address or IPv4 subnet: " << line);
+    }
+    return good;
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
@@ -2125,6 +2143,7 @@ namespace nodetool
       return true;
 
     unsigned good = 0;
+    std::string text;
     for (const auto& record : records)
     {
       std::vector<std::string> ips;
@@ -2133,23 +2152,11 @@ namespace nodetool
       {
         if (ip.empty())
           continue;
-        auto subnet = net::get_ipv4_subnet_address(ip);
-        if (subnet)
-        {
-          block_subnet(*subnet, DNS_BLOCKLIST_LIFETIME);
-          ++good;
-          continue;
-        }
-        const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(ip, 0);
-        if (parsed_addr)
-        {
-          block_host(*parsed_addr, DNS_BLOCKLIST_LIFETIME, true);
-          ++good;
-          continue;
-        }
-        MWARNING("Invalid IP address or subnet from DNS blocklist: " << ip << " - " << parsed_addr.error());
+        text += ip;
+        text += "\n";
       }
     }
+    good += apply_blocklist_text(text, DNS_BLOCKLIST_LIFETIME, true, "Invalid IP address or subnet from DNS blocklist: ");
     if (good > 0)
       MINFO(good << " addresses added to the blocklist");
     return true;
