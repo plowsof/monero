@@ -39,6 +39,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/algorithm/string.hpp>
 #include <atomic>
+#include <fstream>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -502,48 +503,10 @@ namespace nodetool
 
     if (!command_line::is_arg_defaulted(vm, arg_ban_list))
     {
-      const std::string ban_list = command_line::get_arg(vm, arg_ban_list);
-
-      const boost::filesystem::path ban_list_path(ban_list);
-      boost::system::error_code ec;
-      if (!boost::filesystem::exists(ban_list_path, ec))
-      {
-        throw std::runtime_error("Can't find ban list file " + ban_list + " - " + ec.message());
-      }
-
-      std::string banned_ips;
-      if (!epee::file_io_utils::load_file_to_string(ban_list_path.string(), banned_ips))
-      {
-        throw std::runtime_error("Failed to read ban list file " + ban_list);
-      }
-
-      std::istringstream iss(banned_ips);
-      for (std::string line; std::getline(iss, line); )
-      {
-        // ignore comments after '#' character
-        const size_t pound_idx = line.find('#');
-        if (pound_idx != std::string::npos)
-          line.resize(pound_idx);
-
-        // trim whitespace and ignore empty lines
-        boost::trim(line);
-        if (line.empty())
-          continue;
-
-        auto subnet = net::get_ipv4_subnet_address(line);
-        if (subnet)
-        {
-          block_subnet(*subnet, std::numeric_limits<time_t>::max());
-          continue;
-        }
-        const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(line, 0);
-        if (parsed_addr)
-        {
-          block_host(*parsed_addr, std::numeric_limits<time_t>::max());
-          continue;
-        }
-        MERROR("Invalid IP address or IPv4 subnet: " << line);
-      }
+      std::string error;
+      apply_blocklist_file(command_line::get_arg(vm, arg_ban_list), std::numeric_limits<time_t>::max(), false, &error);
+      if (!error.empty())
+        throw std::runtime_error(error);
     }
 
     if(command_line::has_arg(vm, arg_p2p_hide_my_port))
@@ -895,6 +858,55 @@ namespace nodetool
 
     network_zone& public_zone = m_network_zones[epee::net_utils::zone::public_];
     return m_network_zones.emplace_hint(zone_, std::piecewise_construct, std::make_tuple(zone), std::tie(public_zone.m_net_server.get_io_context()))->second;
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  size_t node_server<t_payload_net_handler>::apply_blocklist_file(const std::string& path, time_t seconds, bool add_only, std::string *error)
+  {
+    std::ifstream input(path);
+    if (!input)
+    {
+      if (error)
+      {
+        *error = "Failed to read ban list file " + path;
+        MWARNING(*error);
+      }
+      return 0;
+    }
+
+    unsigned good = 0;
+    for (std::string line; std::getline(input, line); )
+    {
+      // ignore comments after '#' character
+      const size_t pound_idx = line.find('#');
+      if (pound_idx != std::string::npos)
+        line.resize(pound_idx);
+
+      // trim whitespace and ignore empty lines
+      boost::trim(line);
+      if (line.empty())
+        continue;
+
+      auto subnet = net::get_ipv4_subnet_address(line);
+      if (subnet)
+      {
+        block_subnet(*subnet, seconds);
+        ++good;
+        continue;
+      }
+
+      const expect<epee::net_utils::network_address> parsed_addr = net::get_network_address(line, 0);
+
+      if (parsed_addr)
+      {
+        block_host(*parsed_addr, seconds, add_only);
+        ++good;
+        continue;
+      }
+      MERROR("Invalid IP address or IPv4 subnet: " << line);
+    }
+
+    return good;
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
