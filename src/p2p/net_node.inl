@@ -38,6 +38,8 @@
 #include <boost/thread/thread.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/algorithm/string.hpp>
+#include <cerrno>
+#include <cstring>
 #include <atomic>
 #include <fstream>
 #include <functional>
@@ -505,26 +507,9 @@ namespace nodetool
     if (!command_line::is_arg_defaulted(vm, arg_ban_list))
     {
       const std::string ban_list_path = command_line::get_arg(vm, arg_ban_list);
-      std::string error;
-      boost::system::error_code ec{};
-      if (!boost::filesystem::is_regular_file(boost::filesystem::path{ban_list_path}, ec))
-      {
-        error = "Failed to read ban list file " + ban_list_path;
-        MWARNING(error);
-      }
-
-      try
-      {
-        if (error.empty())
-          apply_blocklist_file(ban_list_path, std::numeric_limits<time_t>::max(), false, &error);
-      }
-      catch (const std::exception& e)
-      {
-        error = "Failed to read ban list file " + ban_list_path;
-        MWARNING(error << ": " << e.what());
-      }
-      if (!error.empty())
-        throw std::runtime_error(error);
+      const ssize_t good = apply_blocklist_file(ban_list_path, std::numeric_limits<time_t>::max(), false);
+      if (good < 0)
+        throw std::runtime_error("Invalid --ban-list file: " + ban_list_path);
     }
 
     if(command_line::has_arg(vm, arg_p2p_hide_my_port))
@@ -879,20 +864,26 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  size_t node_server<t_payload_net_handler>::apply_blocklist_file(const std::string& path, time_t seconds, bool add_only, std::string *error)
+  ssize_t node_server<t_payload_net_handler>::apply_blocklist_file(const std::string& path, time_t seconds, bool add_only)
   {
+    boost::system::error_code ec{};
+    if (!boost::filesystem::is_regular_file(boost::filesystem::path{path}, ec))
+    {
+      std::string msg = "Blocklist file " + path + " is not a regular file";
+      if (ec)
+        msg += ": " + ec.message();
+      MWARNING(msg);
+      return -1;
+    }
+
     std::ifstream iss{path};
     if (!iss)
     {
-      if (error)
-      {
-        *error = "Failed to read ban list file " + path;
-        MWARNING(*error);
-      }
-      return 0;
+      MWARNING("Failed to read blocklist file " << path << ": " << errno << " (" << strerror(errno) << ")");
+      return -1;
     }
 
-    unsigned good = 0;
+    ssize_t good = 0;
     for (std::string line; std::getline(iss, line); )
     {
       // ignore comments after '#' character
@@ -2178,9 +2169,8 @@ namespace nodetool
     }
 
     const boost::filesystem::path cache_path = boost::filesystem::path{m_config_folder} / "dns_blocklist.txt";
-    std::string error;
     const auto apply_cached_blocklist = [&]() -> bool {
-      const size_t good = apply_blocklist_file(cache_path.string(), DNS_BLOCKLIST_LIFETIME, true, &error);
+      const ssize_t good = apply_blocklist_file(cache_path.string(), DNS_BLOCKLIST_LIFETIME, true);
       if (good > 0)
         MINFO(good << " addresses added to the blocklist");
       return good > 0;
