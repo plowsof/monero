@@ -22,7 +22,7 @@ casdcd
   - [Compiling Monero from source](#compiling-monero-from-source)
     - [Dependencies](#dependencies)
     - [Guix builds](#guix-builds)
-  - [Internationalization](#Internationalization)
+  - [Internationalization](#Internationalization) sadcdsc a
   - [Using Tor](#using-tor)
   - [Pruning](#Pruning)
   - [Debugging](#Debugging)
