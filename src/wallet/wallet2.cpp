@@ -14935,6 +14935,265 @@ bool wallet2::parse_uri(const std::string &uri, std::string &address, std::strin
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+namespace
+{
+  bool validate_wallet_uri_fields(const wallet2::wallet_uri &data, std::string &error)
+  {
+    if (!data.seed.empty() && (!data.spend_key.empty() || !data.view_key.empty()))
+    {
+      error = "seed cannot be combined with spend_key or view_key";
+      return false;
+    }
+    if (!data.spend_key.empty() && data.view_key.empty())
+    {
+      error = "spend_key requires view_key";
+      return false;
+    }
+    if (data.seed.empty() && data.view_key.empty())
+    {
+      error = "seed or view_key is required";
+      return false;
+    }
+    if (data.height && !data.txids.empty())
+    {
+      error = "height and txid cannot both be set";
+      return false;
+    }
+    return true;
+  }
+
+  bool parse_wallet_uri_hex_key(const char *name, const std::string &value, epee::wipeable_string &out, std::string &error)
+  {
+    if (value.empty())
+    {
+      error = std::string("URI has empty ") + name;
+      return false;
+    }
+    crypto::secret_key key{};
+    if (!epee::string_tools::hex_to_pod(value, key))
+    {
+      error = std::string("URI has invalid ") + name;
+      return false;
+    }
+    out = epee::wipeable_string(value.data(), value.size());
+    return true;
+  }
+}
+bool wallet2::parse_wallet_uri(const std::string &uri, cryptonote::network_type nettype, wallet_uri &result, std::string &error)
+{
+  error.clear();
+
+  // wipeable_string assignment doesn't wipe what it overwrites
+  result.seed.wipe();
+  result.spend_key.wipe();
+  result.view_key.wipe();
+  result = wallet_uri{};
+
+  wallet_uri local{};
+
+  static constexpr char SCHEME[] = "monero-wallet:";
+  if (uri.substr(0, strlen(SCHEME)) != SCHEME)
+  {
+    error = "URI has wrong scheme (expected \"monero-wallet:\")";
+    return false;
+  }
+
+  std::string remainder = uri.substr(strlen(SCHEME));
+  const char *q = std::strchr(remainder.c_str(), '?');
+  local.address = q ? remainder.substr(0, q - remainder.c_str()) : remainder;
+
+  if (local.address.empty())
+  {
+    error = "URI has empty address";
+    return false;
+  }
+
+  cryptonote::address_parse_info info;
+  if (!get_account_address_from_str(info, nettype, local.address))
+  {
+    error = std::string("URI has wrong address: ") + local.address;
+    return false;
+  }
+
+  if (!q)
+  {
+    error = "URI has no parameters";
+    return false;
+  }
+
+  std::string body = remainder.substr(local.address.size() + 1);
+  if (body.empty())
+  {
+    error = "URI has no parameters";
+    return false;
+  }
+
+  std::vector<std::string> arguments;
+  boost::split(arguments, body, boost::is_any_of("&"));
+  std::set<std::string> have_arg;
+
+  for (const auto &arg: arguments)
+  {
+    std::vector<std::string> kv;
+    boost::split(kv, arg, boost::is_any_of("="));
+    if (kv.size() != 2)
+    {
+      error = kv.empty() ? std::string("URI has wrong parameter")
+                         : std::string("URI has wrong parameter: ") + kv[0];
+      return false;
+    }
+    if (have_arg.find(kv[0]) != have_arg.end())
+    {
+      error = std::string("URI has more than one instance of ") + kv[0];
+      return false;
+    }
+    have_arg.insert(kv[0]);
+
+    if (kv[0] == "seed")
+    {
+      std::string decoded = epee::net_utils::convert_from_url_format(kv[1]);
+      if (decoded.empty())
+      {
+        error = "URI has empty seed";
+        return false;
+      }
+      local.seed = epee::wipeable_string(std::move(decoded));
+    }
+    else if (kv[0] == "height")
+    {
+      try
+      {
+        local.height = boost::lexical_cast<uint64_t>(kv[1]);
+      }
+      catch (const boost::bad_lexical_cast &)
+      {
+        error = std::string("URI has invalid height: ") + kv[1];
+        return false;
+      }
+    }
+    else if (kv[0] == "spend_key")
+    {
+      if (!parse_wallet_uri_hex_key("spend_key", kv[1], local.spend_key, error))
+        return false;
+    }
+    else if (kv[0] == "view_key")
+    {
+      if (!parse_wallet_uri_hex_key("view_key", kv[1], local.view_key, error))
+        return false;
+    }
+    else if (kv[0] == "txid")
+    {
+      if (kv[1].empty())
+      {
+        error = "URI has empty txid";
+        return false;
+      }
+      std::vector<std::string> raw_txids;
+      boost::split(raw_txids, kv[1], boost::is_any_of(";"));
+      for (const auto &raw_txid: raw_txids)
+      {
+        crypto::hash txid{};
+        if (!epee::string_tools::hex_to_pod(raw_txid, txid))
+        {
+          error = std::string("URI has invalid txid: ") + raw_txid;
+          return false;
+        }
+        local.txids.push_back(txid);
+      }
+    }
+    else
+    {
+      error = std::string("URI has unknown parameter: ") + kv[0];
+      return false;
+    }
+  }
+
+  if (!validate_wallet_uri_fields(local, error))
+    return false;
+
+  result.seed.wipe();
+  result.spend_key.wipe();
+  result.view_key.wipe();
+  result = std::move(local);
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+std::string wallet2::make_wallet_uri(const wallet_uri &data, cryptonote::network_type nettype, std::string &error)
+{
+  error.clear();
+
+  if (data.address.empty())
+  {
+    error = "Missing address";
+    return {};
+  }
+
+  cryptonote::address_parse_info info;
+  if (!get_account_address_from_str(info, nettype, data.address))
+  {
+    error = std::string("Wrong address: ") + data.address;
+    return {};
+  }
+
+  if (!validate_wallet_uri_fields(data, error))
+    return {};
+
+  crypto::secret_key key{};
+  if (!data.spend_key.empty() && !data.spend_key.hex_to_pod(unwrap(unwrap(key))))
+  {
+    error = "Invalid spend_key";
+    return {};
+  }
+  if (!data.view_key.empty() && !data.view_key.hex_to_pod(unwrap(unwrap(key))))
+  {
+    error = "Invalid view_key";
+    return {};
+  }
+
+  std::string uri = "monero-wallet:" + data.address;
+  unsigned int n_fields = 0;
+
+  if (!data.seed.empty())
+  {
+    std::string seed_plain(data.seed.data(), data.seed.size());
+    std::string encoded = epee::net_utils::conver_to_url_format(seed_plain);
+    memwipe(&seed_plain[0], seed_plain.size());
+    // conver_to_url_format escapes '&' but not '='
+    const bool has_equals = encoded.find('=') != std::string::npos;
+    if (!has_equals)
+      uri += (n_fields++ ? "&" : "?") + std::string("seed=") + encoded;
+    memwipe(&encoded[0], encoded.size());
+    if (has_equals)
+    {
+      error = "Seed contains characters that cannot be safely URL-encoded";
+      return {};
+    }
+  }
+  else
+  {
+    if (!data.spend_key.empty())
+    {
+      uri += (n_fields++ ? "&" : "?") + std::string("spend_key=");
+      uri.append(data.spend_key.data(), data.spend_key.size());
+    }
+    uri += (n_fields++ ? "&" : "?") + std::string("view_key=");
+    uri.append(data.view_key.data(), data.view_key.size());
+  }
+
+  if (data.height)
+    uri += (n_fields++ ? "&" : "?") + std::string("height=") + std::to_string(*data.height);
+
+  if (!data.txids.empty())
+  {
+    std::string txid_str;
+    for (const auto &txid: data.txids)
+      txid_str += (txid_str.empty() ? "" : ";") + epee::string_tools::pod_to_hex(txid);
+    uri += (n_fields++ ? "&" : "?") + std::string("txid=") + txid_str;
+  }
+
+  return uri;
+}
+//----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_blockchain_height_by_date(uint16_t year, uint8_t month, uint8_t day)
 {
   uint32_t version;

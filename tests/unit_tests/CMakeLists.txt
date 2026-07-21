@@ -93,6 +93,7 @@ set(unit_tests_sources
   hardfork.cpp
   unbound.cpp
   uri.cpp
+  wallet_uri.cpp
   util.cpp
   varint.cpp
   verRctNonSemanticsSimple.cpp
