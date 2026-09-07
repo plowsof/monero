@@ -203,7 +203,7 @@ namespace cryptonote
         }
 
         // vout
-        const size_t MAX_VOUT_COUNT = this->is_coinbase() ? MAX_COINBASE_VOUT_COUNT : MAX_NON_COINBASE_VOUT_COUNT;
+        const size_t MAX_VOUT_COUNT = (this->is_coinbase() || vin.empty()) ? MAX_COINBASE_VOUT_COUNT : MAX_NON_COINBASE_VOUT_COUNT;
         CONTAINER_FIELD_CAPPED(vout, MAX_VOUT_COUNT)
       }
       FIELD(extra)
