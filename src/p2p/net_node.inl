@@ -2157,10 +2157,8 @@ namespace nodetool
     }
 
     const std::string& record = records[0];
-    std::string expected_hash = record.substr(0, first_delim_pos);
-    std::string url = record.substr(first_delim_pos + 1, std::string::npos); // url may contain ';'
-    boost::trim(expected_hash);
-    boost::trim(url);
+    const std::string expected_hash = record.substr(0, first_delim_pos);
+    const std::string url = record.substr(first_delim_pos + 1, std::string::npos); // url may contain ';'
 
     if (expected_hash.size() != 64 || url.empty())
     {
