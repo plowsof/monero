@@ -2202,7 +2202,7 @@ namespace nodetool
       const std::string tmp_path = cache_path.string() + ".tmp";
 
       MDEBUG("DNS blocklist: downloading from " << url);
-      if (!tools::download(tmp_path, url, DNS_BLOCKLIST_MAX_SIZE))
+      if (!tools::download_with_max_size(tmp_path, url, DNS_BLOCKLIST_MAX_SIZE))
       {
         cleanup_tmp(tmp_path);
         return false;

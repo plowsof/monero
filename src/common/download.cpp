@@ -270,7 +270,7 @@ namespace tools
     return success;
   }
 
-  bool download(const std::string &path, const std::string &url, size_t max_size)
+  bool download_with_max_size(const std::string &path, const std::string &url, size_t max_size)
   {
     const auto size_guard = [max_size](const std::string& /*path*/, const std::string& /*uri*/, size_t bytes_written, ssize_t content_length) {
       if (max_size > 0 && content_length >= 0 && static_cast<size_t>(content_length) > max_size || max_size > 0 && bytes_written > max_size)
