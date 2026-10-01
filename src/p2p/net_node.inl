@@ -2157,10 +2157,10 @@ namespace nodetool
     }
 
     const std::string& record = records[0];
-    const std::string expected_hash = record.substr(0, first_delim_pos);
+    crypto::hash expected_hash;
     const std::string url = record.substr(first_delim_pos + 1, std::string::npos); // url may contain ';'
 
-    if (expected_hash.size() != 64 || url.empty())
+    if (!epee::string_tools::hex_to_pod(record.substr(0, first_delim_pos), expected_hash) || !boost::starts_with(url, "https://"))
     {
       MWARNING("DNS blocklist: no valid TXT record found");
       return true;
@@ -2178,7 +2178,7 @@ namespace nodetool
     bool cache_ok = false;
     try
     {
-      cache_ok = tools::sha256sum(cache_path.string(), cached_hash) && expected_hash == epee::string_tools::pod_to_hex(cached_hash);
+      cache_ok = tools::sha256sum(cache_path.string(), cached_hash) && expected_hash == cached_hash;
     }
     catch (const std::exception& e)
     {
@@ -2222,7 +2222,7 @@ namespace nodetool
         cleanup_tmp(tmp_path);
         return false;
       }
-      if (expected_hash != epee::string_tools::pod_to_hex(file_hash))
+      if (expected_hash != file_hash)
       {
         MWARNING("DNS blocklist: hash mismatch from " << url);
         cleanup_tmp(tmp_path);
