@@ -876,15 +876,15 @@ namespace nodetool
       return -1;
     }
 
-    std::ifstream iss{path};
-    if (!iss)
+    std::ifstream file{path};
+    if (!file)
     {
       MWARNING("Failed to read blocklist file " << path << ": " << errno << " (" << strerror(errno) << ")");
       return -1;
     }
 
     ssize_t good = 0;
-    for (std::string line; std::getline(iss, line); )
+    for (std::string line; std::getline(file, line); )
     {
       // ignore comments after '#' character
       const size_t pound_idx = line.find('#');
