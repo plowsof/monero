@@ -54,6 +54,7 @@
 #include "common/download.h"
 #include "common/dns_utils.h"
 #include "common/pruning.h"
+#include "scope_guard.h"
 #include "net/error.h"
 #include "misc_log_ex.h"
 #include "p2p_protocol_defs.h"
@@ -2186,26 +2187,22 @@ namespace nodetool
       MWARNING("DNS blocklist: failed to read cached file: " << e.what());
     }
 
-    const auto cleanup_tmp = [](const std::string& tmp_path) {
-      try
-      {
-        boost::filesystem::remove(tmp_path);
-      }
-      catch (const std::exception &e)
-      {
-        MWARNING("DNS blocklist: failed to remove tmp file: " << e.what());
-      }
-    };
-
     const auto refresh_cache = [&]() -> bool {
       const std::string tmp_path = cache_path.string() + ".tmp";
+      epee::unique_scope_guard cleanup_tmp = [&tmp_path]() {
+        try
+        {
+          boost::filesystem::remove(tmp_path);
+        }
+        catch (const std::exception &e)
+        {
+          MWARNING("DNS blocklist: failed to remove tmp file: " << e.what());
+        }
+      };
 
       MDEBUG("DNS blocklist: downloading from " << url);
       if (!tools::download_with_max_size(tmp_path, url, DNS_BLOCKLIST_MAX_SIZE))
-      {
-        cleanup_tmp(tmp_path);
         return false;
-      }
 
       crypto::hash file_hash;
       try
@@ -2213,20 +2210,17 @@ namespace nodetool
         if (!tools::sha256sum(tmp_path, file_hash))
         {
           MWARNING("DNS blocklist: failed to hash downloaded file from " << url);
-          cleanup_tmp(tmp_path);
           return false;
         }
       }
       catch (const std::exception &e)
       {
         MWARNING("DNS blocklist: failed to hash downloaded file from " << url << ": " << e.what());
-        cleanup_tmp(tmp_path);
         return false;
       }
       if (expected_hash != file_hash)
       {
         MWARNING("DNS blocklist: hash mismatch from " << url);
-        cleanup_tmp(tmp_path);
         return false;
       }
 
@@ -2234,10 +2228,10 @@ namespace nodetool
       if (e)
       {
         MWARNING("DNS blocklist: failed to replace cache: " << e.message());
-        cleanup_tmp(tmp_path);
         return false;
       }
 
+      cleanup_tmp.release();
       return true;
     };
 
