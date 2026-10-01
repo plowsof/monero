@@ -2169,9 +2169,10 @@ namespace nodetool
     const boost::filesystem::path cache_path = boost::filesystem::path{m_config_folder} / "dns_blocklist.txt";
     const auto apply_cached_blocklist = [&]() -> bool {
       const ssize_t good = apply_blocklist_file(cache_path.string(), DNS_BLOCKLIST_LIFETIME, true);
-      if (good > 0)
-        MINFO(good << " addresses added to the blocklist");
-      return good > 0;
+      if (good <= 0)
+        return false;
+      MINFO("DNS blocklist: " << good << " addresses in blocklist");
+      return true;
     };
 
     crypto::hash cached_hash;
