@@ -38,8 +38,6 @@
 #include <boost/thread/thread.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/algorithm/string.hpp>
-#include <cerrno>
-#include <cstring>
 #include <atomic>
 #include <fstream>
 #include <functional>
@@ -867,20 +865,10 @@ namespace nodetool
   template<class t_payload_net_handler>
   ssize_t node_server<t_payload_net_handler>::apply_blocklist_file(const std::string& path, time_t seconds, bool add_only)
   {
-    boost::system::error_code ec{};
-    if (!boost::filesystem::is_regular_file(boost::filesystem::path{path}, ec))
-    {
-      std::string msg = "Blocklist file " + path + " is not a regular file";
-      if (ec)
-        msg += ": " + ec.message();
-      MWARNING(msg);
-      return -1;
-    }
-
     std::ifstream file{path};
     if (!file)
     {
-      MWARNING("Failed to read blocklist file " << path << ": " << errno << " (" << strerror(errno) << ")");
+      MWARNING("Can't open blocklist file " << path);
       return -1;
     }
 
@@ -914,6 +902,13 @@ namespace nodetool
         continue;
       }
       MERROR("Invalid IP address or IPv4 subnet: " << line << " - " << parsed_addr.error());
+    }
+
+    // e.g. path is a directory
+    if (!file.eof())
+    {
+      MWARNING("Failed to read blocklist file " << path);
+      return -1;
     }
 
     return good;
