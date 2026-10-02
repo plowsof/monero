@@ -863,17 +863,10 @@ namespace nodetool
   }
   //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
-  ssize_t node_server<t_payload_net_handler>::apply_blocklist_file(const std::string& path, time_t seconds, bool add_only)
+  ssize_t node_server<t_payload_net_handler>::apply_blocklist(std::istream& blocklist, time_t seconds, bool add_only)
   {
-    std::ifstream file{path};
-    if (!file)
-    {
-      MWARNING("Can't open blocklist file " << path);
-      return -1;
-    }
-
     ssize_t good = 0;
-    for (std::string line; std::getline(file, line); )
+    for (std::string line; std::getline(blocklist, line); )
     {
       // ignore comments after '#' character
       const size_t pound_idx = line.find('#');
@@ -904,13 +897,25 @@ namespace nodetool
       MERROR("Invalid IP address or IPv4 subnet: " << line << " - " << parsed_addr.error());
     }
 
-    // e.g. path is a directory
-    if (!file.eof())
+    if (!blocklist.eof())
+      return -1;
+
+    return good;
+  }
+  //-----------------------------------------------------------------------------------
+  template<class t_payload_net_handler>
+  ssize_t node_server<t_payload_net_handler>::apply_blocklist_file(const std::string& path, time_t seconds, bool add_only)
+  {
+    std::ifstream file{path};
+    if (!file)
     {
-      MWARNING("Failed to read blocklist file " << path);
+      MWARNING("Can't open blocklist file " << path);
       return -1;
     }
 
+    const ssize_t good = apply_blocklist(file, seconds, add_only);
+    if (good < 0) // e.g. path is a directory
+      MWARNING("Failed to read blocklist file " << path);
     return good;
   }
   //-----------------------------------------------------------------------------------
