@@ -28,7 +28,7 @@
 
 set(GENERATED_SOURCES "")
 
-set(GENERATOR "${CMAKE_CURRENT_BINARY_DIR}/blocks_generator.cmake")
+set(GENERATOR "${CMAKE_CURRENT_BINARY_DIR}/asmap_generator.cmake")
 file(GENERATE OUTPUT ${GENERATOR} CONTENT [=[
 file(READ "${INPUT_DAT_FILE}" DATA HEX)
 string(REGEX REPLACE "[0-9a-fA-F][0-9a-fA-F]" "0x\\0," DATA "${DATA}")
@@ -41,7 +41,7 @@ const size_t ${BLOB_NAME}_len = sizeof(${BLOB_NAME});
 "
 )
 ]=])
-foreach(BLOB_NAME checkpoints testnet_blocks stagenet_blocks)
+foreach(BLOB_NAME ip_asn)
     set(OUTPUT_C_SOURCE "generated_${BLOB_NAME}.c")
     list(APPEND GENERATED_SOURCES ${OUTPUT_C_SOURCE})
     set(INPUT_DAT_FILE "${BLOB_NAME}.dat")
@@ -57,4 +57,4 @@ foreach(BLOB_NAME checkpoints testnet_blocks stagenet_blocks)
     )
 endforeach()
 
-monero_add_library(blocks blocks.cpp ${GENERATED_SOURCES})
+monero_add_library(asmap_data asmap_data.cpp ${GENERATED_SOURCES})
