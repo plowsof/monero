@@ -51,6 +51,7 @@
 #include "common/util.h"
 #include "common/dns_utils.h"
 #include "common/pruning.h"
+#include "asmap/asmap_data.h"
 #include "net/asmap.h"
 #include "net/error.h"
 #include "misc_log_ex.h"
@@ -70,6 +71,9 @@ namespace nodetool
 {
   namespace
   {
+    // sha256 of src/asmap/ip_asn.dat, must match the hash attested in https://github.com/bitcoin-core/asmap-data
+    const char expected_asmap_hash[] = "03580ade8ec0036ad3d6a5a91602b995c89387f722d3fee58127219de6aafc12";
+
     uint64_t ipv4_subnet_size(const uint8_t mask)
     {
       CHECK_AND_ASSERT_THROW_MES(mask <= 32, "invalid IPv4 subnet mask");
@@ -864,19 +868,39 @@ namespace nodetool
 
     max_connections = command_line::get_arg(vm, arg_max_connections_per_ip);
 
-    boost::filesystem::path asmap_path = command_line::get_arg(vm, arg_asmap);
-    if (!asmap_path.empty())
+    const std::string asmap_arg = command_line::get_arg(vm, arg_asmap);
+    if (asmap_arg == "embedded")
     {
+      const epee::span<const std::uint8_t> asmap = asmap_data::GetEmbeddedAsmap();
+      const crypto::hash version = net::asmap::AsmapVersion(asmap);
+      crypto::hash expected_version;
+      if (!epee::string_tools::hex_to_pod(expected_asmap_hash, expected_version) || version != expected_version)
+      {
+        MFATAL("Embedded asmap hash " << version << " does not match expected " << expected_asmap_hash);
+        return false;
+      }
+      if (!net::asmap::CheckStandardAsmap(asmap))
+      {
+        MFATAL("Invalid embedded asmap");
+        return false;
+      }
+      m_asmap = asmap;
+    }
+    else if (!asmap_arg.empty())
+    {
+      boost::filesystem::path asmap_path = asmap_arg;
       if (asmap_path.is_relative())
         asmap_path = boost::filesystem::path(command_line::get_arg(vm, cryptonote::arg_data_dir)) / asmap_path;
-      m_asmap = net::asmap::DecodeAsmap(asmap_path.string());
-      if (m_asmap.empty())
+      m_loaded_asmap = net::asmap::DecodeAsmap(asmap_path.string());
+      if (m_loaded_asmap.empty())
       {
         MFATAL("Invalid --asmap file: " << asmap_path.string());
         return false;
       }
-      MGINFO("Using asmap version " << epee::string_tools::pod_to_hex(net::asmap::AsmapVersion(epee::to_span(m_asmap))) << " for outbound peer grouping");
+      m_asmap = epee::to_span(m_loaded_asmap);
     }
+    if (!m_asmap.empty())
+      MGINFO("Using asmap version " << epee::string_tools::pod_to_hex(net::asmap::AsmapVersion(m_asmap)) << " for outbound peer grouping");
 
     return true;
   }
@@ -1819,7 +1843,7 @@ namespace nodetool
         {
           if (!m_asmap.empty() && cntxt.m_is_income)
             return true;
-          const boost::optional<peer_group> group = get_peer_group(cntxt.m_remote_address, epee::to_span(m_asmap));
+          const boost::optional<peer_group> group = get_peer_group(cntxt.m_remote_address, m_asmap);
           if (group)
             connected_groups.insert(*group);
           return true;
@@ -1857,7 +1881,7 @@ namespace nodetool
           {
             const peerlist_entry &peer = peers.at(index);
             bool take = true;
-            const boost::optional<peer_group> group = get_peer_group(peer.adr, epee::to_span(m_asmap));
+            const boost::optional<peer_group> group = get_peer_group(peer.adr, m_asmap);
             if (group)
               // This group is now "occupied", don't take any more candidates from this one
               take = groups.insert(*group).second;

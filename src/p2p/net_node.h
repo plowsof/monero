@@ -489,8 +489,10 @@ namespace nodetool
 
     uint32_t max_connections;
 
-    // IP to ASN map used to group outbound peers, empty if not used
-    std::vector<std::uint8_t> m_asmap;
+    // IP to ASN map used to group outbound peers, empty if not used. Points to either the embedded
+    // asmap or m_loaded_asmap
+    epee::span<const std::uint8_t> m_asmap;
+    std::vector<std::uint8_t> m_loaded_asmap;
   };
 
     const int64_t default_limit_up = P2P_DEFAULT_LIMIT_RATE_UP;      // kB/s
