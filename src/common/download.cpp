@@ -270,9 +270,15 @@ namespace tools
     return success;
   }
 
-  bool download_with_max_size(const std::string &path, const std::string &url, size_t max_size)
+  bool download_with_max_size(const std::string &path, const std::string &url, size_t max_size, std::chrono::seconds timeout)
   {
-    const auto size_guard = [max_size](const std::string& /*path*/, const std::string& /*uri*/, size_t bytes_written, ssize_t content_length) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    const auto size_guard = [max_size, deadline](const std::string& /*path*/, const std::string& /*uri*/, size_t bytes_written, ssize_t content_length) {
+      if (std::chrono::steady_clock::now() > deadline)
+      {
+        MERROR("Download rejected, took too long");
+        return false;
+      }
       if (max_size > 0 && ((content_length >= 0 && static_cast<size_t>(content_length) > max_size) || bytes_written > max_size))
       {
         MERROR("Download rejected, file exceeds maximum size");

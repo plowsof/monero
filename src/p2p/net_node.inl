@@ -2201,7 +2201,9 @@ namespace nodetool
       };
 
       MDEBUG("DNS blocklist: downloading from " << url);
-      if (!tools::download_with_max_size(tmp_path, url, DNS_BLOCKLIST_MAX_SIZE))
+      boost::system::error_code ec;
+      boost::filesystem::remove(tmp_path, ec); // don't resume a leftover partial download
+      if (!tools::download_with_max_size(tmp_path, url, DNS_BLOCKLIST_MAX_SIZE, std::chrono::seconds{DNS_BLOCKLIST_DOWNLOAD_TIMEOUT}))
         return false;
 
       crypto::hash file_hash;
