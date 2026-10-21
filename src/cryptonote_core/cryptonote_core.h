@@ -652,6 +652,20 @@ namespace cryptonote
      void safesyncmode(const bool onoff);
 
      /**
+      * @brief sets the connector used for downloads, e.g. a socks proxy
+      *
+      * @param connector the connector, empty for a direct connection
+      */
+     void set_download_connector(tools::download_connector connector) { m_download_connector = std::move(connector); }
+
+     /**
+      * @brief gets the connector used for downloads
+      *
+      * @return the connector, empty for a direct connection
+      */
+     const tools::download_connector &get_download_connector() const { return m_download_connector; }
+
+     /**
       * @brief sets the target blockchain height
       *
       * @param target_blockchain_height the height to set
@@ -1081,6 +1095,7 @@ namespace cryptonote
      } check_updates_level;
 
      tools::download_async_handle m_update_download;
+     tools::download_connector m_download_connector;
      size_t m_last_update_length;
      boost::mutex m_update_mutex;
 

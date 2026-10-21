@@ -1742,7 +1742,7 @@ namespace cryptonote
           MCDEBUG("updates", "Downloaded " << length << "/" << (content_length ? std::to_string(content_length) : "unknown"));
         }
         return true;
-      });
+      }, m_download_connector);
     }
     else
     {
