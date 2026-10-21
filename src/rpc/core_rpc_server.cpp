@@ -2770,7 +2770,7 @@ namespace cryptonote
     if (!tools::sha256sum(path.string(), file_hash) || (hash != epee::string_tools::pod_to_hex(file_hash)))
     {
       MDEBUG("We don't have that file already, downloading");
-      if (!tools::download(path.string(), res.auto_uri))
+      if (!tools::download(path.string(), res.auto_uri, NULL, m_core.get_download_connector()))
       {
         MERROR("Failed to download " << res.auto_uri);
         return true;
