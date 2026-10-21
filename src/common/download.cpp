@@ -38,15 +38,6 @@
 
 namespace tools
 {
-  static boost::mutex download_connector_mutex;
-  static download_connector default_download_connector;
-
-  void set_download_connector(download_connector connector)
-  {
-    boost::lock_guard<boost::mutex> lock(download_connector_mutex);
-    default_download_connector = std::move(connector);
-  }
-
   struct download_thread_control
   {
     const std::string path;
@@ -200,12 +191,6 @@ namespace tools
       MDEBUG("Connecting to " << u_c.host << ":" << port);
       if (control->connector)
         client.set_connector(control->connector);
-      else
-      {
-        boost::lock_guard<boost::mutex> connector_lock(download_connector_mutex);
-        if (default_download_connector)
-          client.set_connector(default_download_connector);
-      }
       client.set_server(u_c.host, std::to_string(port), boost::none, ssl);
       if (!client.connect(std::chrono::seconds(30)))
       {
