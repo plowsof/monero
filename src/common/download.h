@@ -46,8 +46,8 @@ namespace tools
     return content_range.compare(0, prefix.size(), prefix) == 0;
   }
 
-  bool download(const std::string &path, const std::string &url, std::function<bool(const std::string&, const std::string&, size_t, ssize_t)> progress = NULL);
-  download_async_handle download_async(const std::string &path, const std::string &url, std::function<void(const std::string&, const std::string&, bool)> result, std::function<bool(const std::string&, const std::string&, size_t, ssize_t)> progress = NULL);
+  bool download(const std::string &path, const std::string &url, std::function<bool(const std::string&, const std::string&, size_t, ssize_t)> progress = NULL, download_connector connector = {});
+  download_async_handle download_async(const std::string &path, const std::string &url, std::function<void(const std::string&, const std::string&, bool)> result, std::function<bool(const std::string&, const std::string&, size_t, ssize_t)> progress = NULL, download_connector connector = {});
   bool download_wait(const download_async_handle &h);
   bool download_cancel(const download_async_handle &h);
 
