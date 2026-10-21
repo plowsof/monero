@@ -2544,16 +2544,16 @@ TEST(socks_connector, host)
     ASSERT_EQ(boost::future_status::ready, sock.wait_for(boost::chrono::seconds{3}));
     EXPECT_TRUE(sock.get().is_open());
 
-    // downloads use the same connector when set
+    // downloads use the connector they are given
     io_thread dl_io{};
-    tools::set_download_connector(
+    const std::string path = (boost::filesystem::temp_directory_path() / boost::filesystem::unique_path()).string();
+    std::atomic<bool> finished{false};
+    const tools::download_async_handle handle = tools::download_async(path, "http://example.com:8080/",
+        [&finished] (const std::string&, const std::string&, bool) { finished = true; }, NULL,
         net::socks::connector{
             std::make_shared<net::socks::endpoint>(dl_io.acceptor.local_endpoint())
         }
     );
-    const std::string path = (boost::filesystem::temp_directory_path() / boost::filesystem::unique_path()).string();
-    std::atomic<bool> finished{false};
-    const tools::download_async_handle handle = tools::download_async(path, "http://example.com:8080/", [&finished] (const std::string&, const std::string&, bool) { finished = true; });
 
     while (!dl_io.connected)
         ASSERT_FALSE(finished);
@@ -2563,7 +2563,6 @@ TEST(socks_connector, host)
     const std::uint8_t reject_bytes[] = {0, 91, 0, 0, 0, 0, 0, 0};
     boost::asio::write(dl_io.server, boost::asio::buffer(reject_bytes));
     tools::download_wait(handle);
-    tools::set_download_connector({});
     boost::filesystem::remove(path);
 }
 
