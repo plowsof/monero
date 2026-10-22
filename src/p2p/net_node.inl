@@ -2150,7 +2150,13 @@ namespace nodetool
       return true;
     }
 
-    const size_t first_delim_pos = records.empty() ? std::string::npos : records[0].find(';');
+    if (records.size() != 1)
+    {
+      MWARNING("DNS blocklist: expected 1 TXT record, got " << records.size());
+      return true;
+    }
+
+    const size_t first_delim_pos = records[0].find(';');
     if (first_delim_pos == std::string::npos)
     {
       MWARNING("DNS blocklist: no valid TXT record found");
