@@ -2167,9 +2167,9 @@ namespace nodetool
       return true;
     }
 
-    const boost::filesystem::path cache_path = boost::filesystem::path{m_config_folder} / "dns_blocklist.txt";
+    const std::string cache_path = (boost::filesystem::path{m_config_folder} / "dns_blocklist.txt").string();
     const auto apply_cached_blocklist = [&]() -> bool {
-      const ssize_t good = apply_blocklist_file(cache_path.string(), DNS_BLOCKLIST_LIFETIME, true);
+      const ssize_t good = apply_blocklist_file(cache_path, DNS_BLOCKLIST_LIFETIME, true);
       if (good < 0)
         return false;
       MINFO("DNS blocklist: " << good << " addresses in blocklist");
@@ -2180,7 +2180,7 @@ namespace nodetool
     bool cache_ok = false;
     try
     {
-      cache_ok = tools::sha256sum(cache_path.string(), cached_hash) && expected_hash == cached_hash;
+      cache_ok = tools::sha256sum(cache_path, cached_hash) && expected_hash == cached_hash;
     }
     catch (const std::exception& e)
     {
@@ -2188,7 +2188,7 @@ namespace nodetool
     }
 
     const auto refresh_cache = [&]() -> bool {
-      const std::string tmp_path = cache_path.string() + ".tmp";
+      const std::string tmp_path = cache_path + ".tmp";
       epee::unique_scope_guard cleanup_tmp = [&tmp_path]() {
         try
         {
@@ -2226,7 +2226,7 @@ namespace nodetool
         return false;
       }
 
-      const std::error_code e = tools::replace_file(tmp_path, cache_path.string());
+      const std::error_code e = tools::replace_file(tmp_path, cache_path);
       if (e)
       {
         MWARNING("DNS blocklist: failed to replace cache: " << e.message());
