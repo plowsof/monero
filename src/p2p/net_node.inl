@@ -915,7 +915,7 @@ namespace nodetool
 
     const ssize_t good = apply_blocklist(file, seconds, add_only);
     if (good < 0) // e.g. path is a directory
-      MWARNING("Failed to read blocklist file " << path);
+      MWARNING("Failed to parse blocklist file " << path);
     return good;
   }
   //-----------------------------------------------------------------------------------
