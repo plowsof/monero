@@ -2238,16 +2238,10 @@ namespace nodetool
     };
 
     if (!cache_ok && !refresh_cache())
-    {
-      MWARNING("DNS blocklist: could not obtain a verified blocklist");
-      MWARNING("DNS blocklist: applying cached blocklist (may be outdated)");
-      if (!apply_cached_blocklist())
-        MWARNING("DNS blocklist: no cached blocklist available");
-      return true;
-    }
+      MWARNING("DNS blocklist: could not obtain a verified blocklist, falling back to cache");
 
     if (!apply_cached_blocklist())
-      MWARNING("DNS blocklist: verified blocklist is missing/unreadable");
+      MWARNING("DNS blocklist: cached blocklist is missing/unreadable");
     return true;
   }
   //-----------------------------------------------------------------------------------
