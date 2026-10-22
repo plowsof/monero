@@ -2192,7 +2192,7 @@ namespace nodetool
       epee::unique_scope_guard cleanup_tmp = [&tmp_path]() {
         try
         {
-          boost::filesystem::remove(tmp_path);
+          boost::filesystem::remove(tmp_path); // only removes if the file exists
         }
         catch (const std::exception &e)
         {
